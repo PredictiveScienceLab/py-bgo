@@ -1,6 +1,6 @@
 # py-bgo: A Python implementation of Bayesian global optimization
 
-The module is called **pydes**.
+The module is called **pybgo**.
 
 Documentation soon to come.
 For some examples, see:
