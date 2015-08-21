@@ -13,8 +13,6 @@ Date:
 __all__ = ['GlobalOptimizer']
 
 
-import warnings
-warnings.filterwarnings('ignore')
 import numpy as np
 from collections import Iterable
 import math
@@ -23,8 +21,6 @@ import matplotlib.pyplot as plt
 import seaborn
 from . import expected_improvement
 from . import ModelEnsemble
-from . import LogLogisticPrior
-from . import JeffreysPrior
 
 
 class GlobalOptimizer(object):
@@ -44,15 +40,11 @@ class GlobalOptimizer(object):
     # The initial design
     _X_init = None
 
-    _X_masked_init = None
-
     # The initial observations
     _Y_init = None
 
     # The total design we have available
     _X_design = None
-
-    _X_masked_design = None
 
     # The indexes of the observations we have made so far (list of integers)
     _idx_X_obs = None
@@ -185,13 +177,6 @@ class GlobalOptimizer(object):
         return np.vstack([self.X_init, self.X_design[self.idx_X_obs]])
 
     @property 
-    def X_masked(self):
-        """
-        :getter: Get all the currently observed points.
-        """
-        return np.vstack([self._X_masked_init, self._X_masked_design[self.idx_X_obs]])
-
-    @property 
     def Y(self):
         """
         :getter: Get all the currently observed objectives.
@@ -200,34 +185,8 @@ class GlobalOptimizer(object):
             return np.array(self.Y_init)
         return np.vstack([self.Y_init, self.Y_obs])
 
-    @property 
-    def best_value(self):
-        """
-        :getter: Get the best value.
-        """
-        return self.current_best_value[-1]
-
-    @property 
-    def best_index(self):
-        """
-        :getter: Get the current best index.
-        """
-        return self.current_best_index[-1]
-
-    @property 
-    def best_design(self):
-        i = np.argmin(self.Y)
-        return self.X[i, :]
-
-    @property 
-    def best_masked_design(self):
-        i = np.argmin(self.Y)
-        return self.X_masked[i, :]
-
     def __init__(self, X_init, X_design, func, args=(), Y_init=None,
-                 af=expected_improvement, af_args=(),
-                 X_masked_init=None,
-                 X_masked_design=None):
+                 af=expected_improvement, af_args=()):
         """
         Initialize the object.
         """
@@ -240,59 +199,68 @@ class GlobalOptimizer(object):
         self._af_args = af_args
         self._idx_X_obs = []
         self._Y_obs = []
-        self._X_masked_init = X_masked_init
-        self._X_masked_design = X_masked_design
 
-    def optimize(self, max_it=100, tol=1e-1, fixed_noise=1e-8,
+    def optimize(self, max_it=100, tol=1e-1, kernel=None, fixed_noise=None,
                  GPModelClass=GPy.models.GPRegression,
                  verbose=True,
                  add_at_least=10,
-                 callback_func=None,
-                 callback_func_args=(),
                  **kwargs):
         """
         Optimize the objective.
-
-        :param callback_func:       A function that should be called at each iteration.
-        :param callback_func_args:  Arguments to the callback function.
         """
         assert add_at_least >= 1
         if self.Y_init is None:
-            X = self.X_init if self._X_masked_init is None else self._X_masked_init
-            self.Y_init = [self.func(x, *self.args) for x in X]
-        self.tol = tol
-        self.max_it = max_it
-        self.af_values = []
-        self.selected_index = []
-        self.current_best_value = []
-        self.current_best_index = []
+            self.Y_init = [self.func(x, *self.args) for x in self.X_init]
+        if kernel is None:
+            kernel = GPy.kern.RBF(self.X_init.shape[1], ARD=True)
+            kernel.variance.set_prior(GPy.priors.Jeffreys())
+            kernel.lengthscale.set_prior(GPy.priors.LogLogistic())
+        # Acquisition function values at each iteration
+        af_values = []
         for it in xrange(max_it):
             kernel = GPy.kern.RBF(self.X_init.shape[1], ARD=True)
+            kernel.variance.set_prior(GPy.priors.LogGaussian(0., 1.))
+            kernel.lengthscale.set_prior(GPy.priors.LogGaussian(math.log(1.), 1.))
             model = GPModelClass(self.X, self.Y, kernel)
-            self.model = model
+            model._X_predict = self.X_design
+            model.likelihood.variance.set_prior(GPy.priors.Jeffreys())
             if fixed_noise is not None:
-                model.Gaussian_noise.variance.unconstrain()
                 model.Gaussian_noise.variance.constrain_fixed(fixed_noise)
-                #model.kern.lengthscale.unconstrain()
-                #model.kern.lengthscale.fix(.8)
-            model.optimize_restarts(20, verbose=False)
-            af, i_n, m_n = self.acquisition_function(self.X_design, model, *self.af_args)
-            i = np.argmax(af)
-            self.af = af
-            self.selected_index.append(i)
-            self.af_values.append(af[i])
-            self.current_best_value.append(self.Y.min())
-            if it >= add_at_least and af[i] / self.af_values[0] < tol:
+            model.pymc_trace_denoised_max()
+            model.pymc_trace_denoised_argmax()
+            model.pymc_trace_posterior_samples()
+            model.pymc_trace_expected_improvement(denoised=True)
+            model.pymc_mcmc.sample(10000, burn=1000, thin=100,
+                                   tune_throughout=False)
+            theta = model.pymc_mcmc.trace('hyperparameters')[:]
+            ei_all = model.pymc_mcmc.trace('denoised_ei_min')[:]
+            ei = ei_all.mean(axis=0)
+            Y = model.pymc_mcmc.trace('denoised_posterior_samples')[:]
+            Y = np.vstack(Y)
+            i = np.argmax(ei)
+            af_values.append(ei[i])
+            if it >= add_at_least and ei[i] / af_values[0] < tol:
                 if verbose:
-                    print '*** Converged (af[i] / afmax0 = {0:1.7f}) < {1:e}'.format(af[i] / self.af_values[0], tol)
+                    print '*** Converged (af[i] / afmax0 = {0:1.7f})'.format(ei[i] / af_values[0])
                 break
-            self.idx_X_obs.append(i)
-            if self._X_masked_design is None:
-                self.Y_obs.append(self.func(self.X_design[i], *self.args))
-            else:
-                self.Y_obs.append(self.func(self._X_masked_design[i], *self.args))
             if verbose:
-                print '> Iter {0:d}, Selected struct.: {1:d}, Max EI = {2:1.4f}, Min seen energy: {4:1.3f}'.format(it, i, af[i] / self.af_values[0], self.Y_obs[-1][0], self.Y.min())
-            self.current_best_index.append(np.argmin(self.Y))
-            if callback_func is not None:
-                callback_func(*callback_func_args)
+                print '{0:8d} {1:1.7f}'.format(i, ei[i])
+            self.idx_X_obs.append(i)
+            self.Y_obs.append(self.func(self.X_design[i], *self.args))
+            #q = me.predict_quantiles(self.X_design, size=100)
+            fig, ax = plt.subplots()
+            ax.plot(theta)
+            fig, ax1 = plt.subplots()
+            ax2 = ax1.twinx()
+            ax1.plot(self.X, self.Y, 'x', markersize=10, markeredgewidth=2)
+            ax1.plot(self.X_design, Y.T, 'r', linewidth=0.1)
+            #ax1.plot(self.X_design, q[0, :], 'g', linewidth=2)
+            #ax1.fill_between(self.X_design.flatten(), q[1, :], q[2, :], color='green', alpha=0.25)
+            ax2.plot(self.X_design, ei, '--m', linewidth=2)
+            #fig = plt.figure()
+            #ax = fig.add_subplot(111)
+            #ax.hist(M_ns, normed=True)
+            #fif, ax = plt.subplots()
+            #ax.hist(X_ns, normed=True, bins=100)
+            plt.show()
+            a = raw_input('press enter')
