@@ -5,7 +5,7 @@ from numpy.distutils.core import Extension
 
 
 setup(name='py-bgo',
-      version='0.1',
+      version='0.2',
       descreption='Bayesian gloabl optimization',
       author='Ilias Bilionis',
       author_email='ibilion@purdue.edu',
