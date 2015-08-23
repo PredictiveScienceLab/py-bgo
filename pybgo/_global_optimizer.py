@@ -404,6 +404,9 @@ class GlobalOptimizer(object):
             print '> initializing algorithm'
         self.initialize()
         self.ei_values = []
+        self.y_best_p500 = []
+        self.y_best_p025 = []
+        self.y_best_p975 = []
         for it in xrange(self.max_it):
             i, ei_max = self.optimize_step(it)
             self.ei_values.append(ei_max)
@@ -551,6 +554,40 @@ class GlobalOptimizer(object):
             print '\t\t> writing:', figname
         fig.savefig(figname)
         plt.close(fig)
+        # Plot the expected improvement so far
+        if self.verbose:
+            print '\t\t> plotting the max expected improvement'
+        fig, ax = self.new_fig_func()
+        rel_ei = self.ei_values / self.ei_values[0]
+        ax.plot(np.arange(1, it + 2), rel_ei)
+        ax.set_xlabel('Iteration')
+        ax.set_ylabel('Maximum expected improvement')
+        figname = self._fig_name('ei', it)
+        if self.verbose:
+            print '\t\t> writing:', figname
+        fig.savefig(figname)
+        plt.close(fig)
+        # Plot the range of the best objectives we have found so far
+        if self.verbose:
+            print '\t\t> plotting stat. about optimal objective value'
+        y_best_p500 = np.median(self.Y_best)
+        y_best_p025 = np.percentile(self.Y_best, 2.5)
+        y_best_p975 = np.percentile(self.Y_best, 97.5)
+        self.y_best_p500.append(y_best_p500)
+        self.y_best_p025.append(y_best_p025)
+        self.y_best_p975.append(y_best_p975)
+        fig, ax = self.new_fig_func()
+        ax.plot(np.arange(1, it + 2), self.y_best_p500)
+        ax.fill_between(np.arange(1, it + 2), self.y_best_p025,
+                        self.y_best_p975, color=sns.color_palette()[0],
+                        alpha=0.25)
+        if self.true_func is not None:
+            ax.plot(np.arange(1, it + 2), [self.Y_true_best] * (it + 1),
+                    '--', color=sns.color_palette()[2])
+        figname = self._fig_name('objective', it)
+        if self.verbose:
+            print '\t\t> writing:', figname
+        fig.savefig(figname)
 
     def plot_opt_joint(self, it):
         if self.num_dim == 1:
@@ -611,7 +648,8 @@ class GlobalOptimizer(object):
         g = sns.jointplot(self.X_best.flatten(), self.Y_best, kind='kde')
         g.set_axis_labels('Optimal design', 'Optimal objective')
         if self.true_func is not None:
-            g.ax_joint.plot(self.X_true_best[0], self.Y_true_best, 'rx',
+            g.ax_joint.plot(self.X_true_best[0], self.Y_true_best, 'x',
+                            color=sns.color_palette()[2],
                             markersize=10, markeredgewidth=2)
         plt.savefig(self._fig_name('opt', it))
 
