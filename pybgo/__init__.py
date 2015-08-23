@@ -13,4 +13,5 @@ Date:
 from _cholesky import *
 from _core import *
 from _ei import *
+from _mimic_alpha import *
 from _global_optimizer import *

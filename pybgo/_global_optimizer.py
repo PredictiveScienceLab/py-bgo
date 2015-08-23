@@ -20,6 +20,7 @@ import sys
 import warnings
 warnings.simplefilter('ignore')
 import GPy
+from . import colorAlpha_to_rgb
 
 
 class GlobalOptimizer(object):
@@ -529,12 +530,11 @@ class GlobalOptimizer(object):
         p_025 = np.percentile(Y_d, 2.5, axis=0)
         p_500 = np.percentile(Y_d, 50, axis=0)
         p_975 = np.percentile(Y_d, 97.5, axis=0)
+        ax1.fill_between(self.X_design.flatten(), p_025, p_975,
+                         color=colorAlpha_to_rgb(sns.color_palette()[0], 0.25),
+                         label='95\% error')
         ax1.plot(self.X_design, p_500, color=sns.color_palette()[0],
                       label='Pred. mean')
-        ax1.fill_between(self.X_design.flatten(), p_025, p_975,
-                         color=sns.color_palette()[0],
-                         alpha=0.25,
-                         label='95\% error')
         ax1.plot(self.X[:-1, :], self.Y[:-1, :],
                  'kx', markersize=10, markeredgewidth=2,
                  label='Observations')
@@ -577,10 +577,10 @@ class GlobalOptimizer(object):
         self.y_best_p025.append(y_best_p025)
         self.y_best_p975.append(y_best_p975)
         fig, ax = self.new_fig_func()
-        ax.plot(np.arange(1, it + 2), self.y_best_p500)
         ax.fill_between(np.arange(1, it + 2), self.y_best_p025,
-                        self.y_best_p975, color=sns.color_palette()[0],
-                        alpha=0.25)
+                        self.y_best_p975,
+                        color=colorAlpha_to_rgb(sns.color_palette()[0], 0.25))
+        ax.plot(np.arange(1, it + 2), self.y_best_p500)
         if self.true_func is not None:
             ax.plot(np.arange(1, it + 2), [self.Y_true_best] * (it + 1),
                     '--', color=sns.color_palette()[2])
