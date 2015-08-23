@@ -32,7 +32,7 @@ def f(x, sigma=0.):
 np.random.seed(3145252)
 
 # The objective
-objective = lambda(x): f(x, sigma=.5)
+objective = lambda(x): f(x, sigma=1.5)
 
 # Just for plotting
 X_design = np.linspace(0, 6., 100)[:, None]

@@ -291,6 +291,8 @@ class GlobalOptimizer(object):
         self.num_mcmc_thin = num_mcmc_thin
         self.mcmc_tune_throughout = mcmc_tune_throughout
         self.mcmc_progress_bar = mcmc_progress_bar
+        if optimize_model_before_mcmc:
+            mcmc_start_from_scratch = True
         self.mcmc_start_from_scratch = mcmc_start_from_scratch
         self.verbose = True
         self.make_plots = make_plots
@@ -408,6 +410,9 @@ class GlobalOptimizer(object):
         self.y_best_p500 = []
         self.y_best_p025 = []
         self.y_best_p975 = []
+        self.x_best_p500 = []
+        self.x_best_p025 = []
+        self.x_best_p975 = []
         for it in xrange(self.max_it):
             i, ei_max = self.optimize_step(it)
             self.ei_values.append(ei_max)
@@ -429,7 +434,10 @@ class GlobalOptimizer(object):
         """
         if self.verbose:
             print '> plotting intermediate results'
-        self.plot_mcmc_diagnostics(it)
+        try:
+            self.plot_mcmc_diagnostics(it)
+        except:
+            pass
         self.plot_opt_status(it)
         self.plot_opt_dist(it)
         self.plot_opt_joint(it)
@@ -584,10 +592,38 @@ class GlobalOptimizer(object):
         if self.true_func is not None:
             ax.plot(np.arange(1, it + 2), [self.Y_true_best] * (it + 1),
                     '--', color=sns.color_palette()[2])
+        ax.set_xlabel('Iteration')
+        ax.set_ylabel('Optimal objective')
         figname = self._fig_name('objective', it)
         if self.verbose:
             print '\t\t> writing:', figname
         fig.savefig(figname)
+        plt.close(fig)
+        # Do the same for the design (only 1D)
+        if self.num_dim == 1:
+            if self.verbose:
+                print '\t\t> plotting stat. about optimal design'
+            x_best_p500 = np.median(self.X_best.flatten())
+            x_best_p025 = np.percentile(self.X_best.flatten(), 2.5)
+            x_best_p975 = np.percentile(self.X_best.flatten(), 97.5)
+            self.x_best_p500.append(x_best_p500)
+            self.x_best_p025.append(x_best_p025)
+            self.x_best_p975.append(x_best_p975)
+            fig, ax = self.new_fig_func()
+            ax.fill_between(np.arange(1, it + 2), self.x_best_p025,
+                            self.x_best_p975,
+                            color=colorAlpha_to_rgb(sns.color_palette()[0], 0.25))
+            ax.plot(np.arange(1, it + 2), self.x_best_p500)
+            if self.true_func is not None:
+                ax.plot(np.arange(1, it + 2), [self.X_true_best.flatten()] * (it + 1),
+                        '--', color=sns.color_palette()[2])
+            ax.set_xlabel('Iteration')
+            ax.set_ylabel('Optimal design')
+            figname = self._fig_name('design', it)
+            fig.savefig(figname)
+            if self.verbose:
+                print '\t\t> writing:', figname
+            plt.close(fig)
 
     def plot_opt_joint(self, it):
         if self.num_dim == 1:
