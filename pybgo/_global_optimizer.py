@@ -262,7 +262,7 @@ class GlobalOptimizer(object):
                  plot_ext='png',
                  plot_prefix='optimizer',
                  true_func=None,
-                 new_figure_func=None):
+                 new_fig_func=None):
         """
         Initialize the object.
         """
@@ -302,7 +302,7 @@ class GlobalOptimizer(object):
             i_best = np.argmin(self.Y_true)
             self.X_true_best = self.X_design[i_best, :]
             self.Y_true_best = self.Y_true[i_best, 0]
-        if new_figure_func is None:
+        if new_fig_func is None:
             def new_fig():
                 import matplotlib.pyplot as plt
                 return plt.subplots()
