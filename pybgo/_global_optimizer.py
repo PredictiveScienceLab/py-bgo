@@ -307,7 +307,7 @@ class GlobalOptimizer(object):
                 import matplotlib.pyplot as plt
                 return plt.subplots()
             new_fig_func = new_fig
-        self.new_fig_func = new_fig
+        self.new_fig_func = new_fig_func
 
     def _get_fresh_kernel(self):
         """
