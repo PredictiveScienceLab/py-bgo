@@ -13,5 +13,4 @@ Date:
 from _cholesky import *
 from _core import *
 from _ei import *
-from _model_ensemble import *
 from _global_optimizer import *
