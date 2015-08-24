@@ -29,7 +29,10 @@ from scipy.integrate import quad
 #from choldate import choldowndate, cholupdate
 
 
-from statsmodels.sandbox.distributions.multivariate import mvnormcdf
+try:
+    from statsmodels.sandbox.distributions.multivariate import mvnormcdf
+except:
+    pass
 import math
 
 
