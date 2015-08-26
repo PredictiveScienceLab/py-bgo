@@ -567,7 +567,7 @@ class GlobalOptimizer(object):
         fig.savefig(figname)
         plt.close(fig)
         
-    def plot_opt_status_gen(self, it)
+    def plot_opt_status_gen(self, it):
         # Plot the expected improvement so far
         if self.verbose:
             print '\t\t> plotting the max expected improvement'
