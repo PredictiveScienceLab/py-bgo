@@ -341,9 +341,9 @@ class GlobalOptimizer(object):
         model._num_predict = self.num_predict
         model.pymc_trace_denoised_min()
         model.pymc_trace_denoised_argmin()
+        model.pymc_trace_expected_improvement(denoised=True)
         if self.trace_posterior_samples:
             model.pymc_trace_posterior_samples()
-            model.pymc_trace_expected_improvement(denoised=True)
         return model
 
     def initialize(self):
