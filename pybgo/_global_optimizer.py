@@ -263,7 +263,8 @@ class GlobalOptimizer(object):
                  plot_ext='png',
                  plot_prefix='optimizer',
                  true_func=None,
-                 new_fig_func=None):
+                 new_fig_func=None,
+                 trace_posterior_samples=False):
         """
         Initialize the object.
         """
@@ -311,6 +312,7 @@ class GlobalOptimizer(object):
                 return plt.subplots()
             new_fig_func = new_fig
         self.new_fig_func = new_fig_func
+        self.trace_posterior_samples = trace_posterior_samples
 
     def _get_fresh_kernel(self):
         """
@@ -339,8 +341,9 @@ class GlobalOptimizer(object):
         model._num_predict = self.num_predict
         model.pymc_trace_denoised_min()
         model.pymc_trace_denoised_argmin()
-        model.pymc_trace_posterior_samples()
-        model.pymc_trace_expected_improvement(denoised=True)
+        if self.trace_posterior_samples:
+            model.pymc_trace_posterior_samples()
+            model.pymc_trace_expected_improvement(denoised=True)
         return model
 
     def initialize(self):
