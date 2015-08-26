@@ -522,6 +522,7 @@ class GlobalOptimizer(object):
             plt.close(fig)
 
     def plot_opt_status(self, it):
+        self.plot_opt_status_gen(it)
         if self.num_dim == 1:
             self.plot_opt_status_1d(it)
         elif self.num_dim == 2:
@@ -565,6 +566,8 @@ class GlobalOptimizer(object):
             print '\t\t> writing:', figname
         fig.savefig(figname)
         plt.close(fig)
+        
+    def plot_opt_status_gen(self, it)
         # Plot the expected improvement so far
         if self.verbose:
             print '\t\t> plotting the max expected improvement'
