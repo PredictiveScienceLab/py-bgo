@@ -264,7 +264,8 @@ class GlobalOptimizer(object):
                  plot_prefix='optimizer',
                  true_func=None,
                  new_fig_func=None,
-                 trace_posterior_samples=False):
+                 trace_posterior_samples=False,
+                 renew_design=False):
         """
         Initialize the object.
         """
@@ -313,6 +314,7 @@ class GlobalOptimizer(object):
             new_fig_func = new_fig
         self.new_fig_func = new_fig_func
         self.trace_posterior_samples = trace_posterior_samples
+        self.renew_design = renew_design
 
     def _get_fresh_kernel(self):
         """
@@ -371,6 +373,9 @@ class GlobalOptimizer(object):
         self._best_idx = None
         if self.mcmc_start_from_scratch:
             self._model = None
+        if self.renew_design:
+            self.X_design = design.latin_center(*self.X_design.shape)
+            self.model._X_predict = self.X_design
         if (it == 0 and self.optimize_model_before_init_mcmc) \
                 or self.optimize_model_before_mcmc:
             if self.verbose:
