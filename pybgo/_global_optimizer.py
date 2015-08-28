@@ -20,6 +20,7 @@ import sys
 import warnings
 warnings.simplefilter('ignore')
 import GPy
+import design
 from . import colorAlpha_to_rgb
 
 
