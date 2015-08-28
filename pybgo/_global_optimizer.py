@@ -303,7 +303,7 @@ class GlobalOptimizer(object):
         self.true_func = true_func
         if self.true_func is not None:
             # Assuming this is a test and that true_func is very cheap
-            self.Y_true = np.array(self.true_func(x) for x in self.X_design])[:, None]
+            self.Y_true = np.array([self.true_func(x) for x in self.X_design])[:, None]
             i_best = np.argmin(self.Y_true)
             self.X_true_best = self.X_design[i_best, :]
             self.Y_true_best = self.Y_true[i_best, 0]
