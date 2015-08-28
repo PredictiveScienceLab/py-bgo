@@ -446,9 +446,18 @@ class GlobalOptimizer(object):
             self.plot_mcmc_diagnostics(it)
         except:
             pass
-        self.plot_opt_status(it)
-        self.plot_opt_dist(it)
-        self.plot_opt_joint(it)
+        try:
+            self.plot_opt_status(it)
+        except:
+            pass
+        try:
+            self.plot_opt_dist(it)
+        except:
+            pass
+        try:
+            self.plot_opt_joint(it)
+        except:
+            pass
 
     def _get_nd(self):
         """
