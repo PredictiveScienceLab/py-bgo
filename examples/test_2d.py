@@ -6,15 +6,17 @@ Author:
 
 Date:
     10/16/2014
-
+    10/13/2015
 """
 
 
-from core import *
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import pybgo
 import numpy as np
 import scipy
 import math
-
 
 
 def f(x):
@@ -54,5 +56,5 @@ X_init = np.hstack((t.flatten()[:, None] for t in (X1, X2)))
 
 
 # Globally minimize f
-minimize(f, X_init, X_design, prefix='branin_function', max_it=100,
-         callback=plot_summary_2d, tol=1e-4)
+pybgo.minimize(f, X_init, X_design, prefix='branin_function', max_it=100,
+               callback=pybgo.plot_summary_2d, tol=1e-4)

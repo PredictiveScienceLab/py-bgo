@@ -26,7 +26,7 @@ import math
 import scipy
 import scipy.stats as stats
 from scipy.integrate import quad
-#from choldate import choldowndate, cholupdate
+import cPickle as pickle
 
 
 try:
@@ -71,6 +71,7 @@ def expected_improvement(X_design, model, mode='min'):
     m_s, v_s = model.predict(X_design)[:2]
     m_s = m_s.flatten()
     v_s = v_s.flatten()
+    v_s[v_s < 0.] = 0.
     s_s = np.sqrt(v_s)
     if mode == 'min':
         m_n = np.min(y)
@@ -81,6 +82,7 @@ def expected_improvement(X_design, model, mode='min'):
     else:
         raise NotImplementedError('I do not know what to do with mode %s' %mode)
     ei = s_s * (u * stats.norm.cdf(u) + stats.norm.pdf(u))
+    ei[s_s == 0.] = 0.
     return ei
 
 
@@ -204,26 +206,33 @@ def plot_summary(f, X_design, model, prefix, G, Gamma_name):
     Plot a summary of the current iteration.
     """
     import matplotlib.pyplot as plt
+    import seaborn as sns
     X = model.X
     y = model.Y
     m_s, k_s = model.predict(X_design, full_cov=True)
     m_05, m_95 = model.predict_quantiles(X_design)
     fig, ax1 = plt.subplots()
-    ax1.plot(X_design, f(X_design), 'b', linewidth=2)
-    ax1.plot(X, y, 'go', linewidth=2, markersize=10, markeredgewidth=2)
-    ax1.plot(X_design, m_s, 'r--', linewidth=2)
+    yt = np.array([f(X_design[i, :]) for i in xrange(X_design.shape[0])])
+    ax1.plot(X_design, yt, linewidth=2, color=sns.color_palette()[2])
+    ax1.plot(X, y, 'x', linewidth=2, markersize=10, markeredgewidth=2,
+             color='black')
+    ax1.plot(X_design, m_s, '--', linewidth=2, color=sns.color_palette()[0])
     ax1.fill_between(X_design.flatten(), m_05.flatten(), m_95.flatten(),
-                     color='grey', alpha=0.5)
+                     color=sns.color_palette()[0], alpha=0.25)
+    i = np.argmax(G)
+    ax1.plot(X_design[i], yt[i], 'o', markersize=10, markeredgewidth=2,
+             color=sns.color_palette()[1])
     ax1.set_ylabel('$f(x)$', fontsize=16)
+    ax1.set_xlabel('$x$', fontsize=16)
     ax2 = ax1.twinx()
-    ax2.plot(X_design, G, 'g', linewidth=2)
-    ax2.set_ylabel('$%s(x)$' % Gamma_name, fontsize=16, color='g')
-    #ax2.set_ylim([0., 3.])
-    plt.setp(ax2.get_yticklabels(), color='g')
+    ax2.plot(X_design, G, ':', linewidth=2, color=sns.color_palette()[1])
+    ax2.set_ylabel('$\\operatorname{%s}(x)$' % Gamma_name, fontsize=16, color=sns.color_palette()[1])
+    ax2.set_ylim([0., 2.])
+    plt.setp(ax2.get_yticklabels(), color=sns.color_palette()[1])
     png_file = prefix + '.png'
-    print 'Writing:', png_file
-    plt.savefig(png_file)
-    plt.clf()
+    print '+ writing:', png_file
+    fig.savefig(png_file)
+    plt.close(fig)
 
 
 def plot_summary_2d(f, X_design, model, prefix, G, Gamma_name):
@@ -240,8 +249,8 @@ def plot_summary_2d(f, X_design, model, prefix, G, Gamma_name):
     fig.colorbar(cax)
     ax.set_xlabel('$x_1$', fontsize=16)
     ax.set_ylabel('$x_2$', fontsize=16)
-    plt.savefig(prefix + '_' + Gamma_name + '.png')
-    plt.clf()
+    fig.savefig(prefix + '_' + Gamma_name + '.png')
+    plt.close(fig)
     X = model.X
     m_s, k_s = model.predict(X_design)
     M_s = m_s.reshape((n, n))
@@ -268,32 +277,57 @@ def plot_summary_2d(f, X_design, model, prefix, G, Gamma_name):
 
 
 def minimize(f, X_init, X_design, prefix="minimize", Gamma=expected_improvement,
-             Gamma_name='EI', max_it=10, tol=1e-1, callback=None):
+             Gamma_name='EI', max_it=100, tol=1e-1, add_at_least=1,
+             train_every=5, fixed_noise=1e-6, do_not_resample=True,
+             callback=None, save_model=False):
     """
     Optimize f using a limited number of evaluations.
     """
     X = X_init
     y = np.array([f(X[i, :]) for i in xrange(X.shape[0])])
+    Gs = [1.]
+    i_added = []
     k = GPy.kern.RBF(X.shape[1], ARD=True)
+    model = GPy.models.GPRegression(X, y, k)
+    if fixed_noise is not None:
+        model.likelihood.variance.unconstrain()
+        model.likelihood.variance.constrain_fixed(fixed_noise)
+    model.optimize()
     for count in xrange(max_it):
-        model = GPy.models.GPRegression(X, y, k)
-        model.Gaussian_noise.variance.constrain_fixed(1e-6)
-        model.optimize()
-        print str(model)
         G = Gamma(X_design, model)
         if callback is not None:
             callback(f, X_design, model,
                      prefix + '_' + str(count).zfill(2), G, Gamma_name)
+        if do_not_resample:
+            G[i_added] = 0.
         i = np.argmax(G)
-        if G[i] < tol:
+        i_added.append(i)
+        if i > add_at_least and G[i] / Gs[0] < tol:
             print '*** converged'
             break
-        print 'I am adding:', X_design[i:(i+1), :]
-        print 'which has a G of', G[i]
         X = np.vstack([X, X_design[i:(i+1), :]])
         y = np.vstack([y, f(X_design[i, :])])
-        print 'it =', count+1, ', min =', np.min(y), ' arg min =', X[np.argmin(y), :]
-    return X, y
+        if i % train_every == 0:
+            print '+ training the model'
+            k = GPy.kern.RBF(X.shape[1], ARD=True)
+            model = GPy.models.GPRegression(X, y, k)
+            if fixed_noise is not None:
+                model.likelihood.variance.unconstrain()
+                model.likelihood.variance.constrain_fixed(fixed_noise)
+                model.optimize()
+        else:
+            model.set_XY(X, y)
+        if save_model:
+            model_file = prefix + \
+                    '_model_{0:s}.pcl'.format(str(count).zfill(len(str(max_it))))
+            print '+ writing:', model_file
+            with open(model_file, 'wb') as fd:
+                pickle.dump(model, fd)
+        print '{0:5d}: {1:10s} = {2:1.6f}, {3:10s} = {4:6d}, {5:10s} = {6:1.6e}'.format(
+                count + 1, 'current min.', np.min(y), 'added id #', i,
+                'rel.' + Gamma_name, G[i] / Gs[0])
+        Gs.append(G[i])
+    return X, y, Gs, model
 
 
 def maximize(f, X_init, X_design, prefix='maximize', Gamma=expected_improvement,
