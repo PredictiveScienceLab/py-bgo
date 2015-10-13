@@ -1,13 +1,11 @@
 """
-This is the simplest possible, brute force test of the informative learning
-scheme.
+A toy 2D function.
 
 Author:
     Ilias Bilionis
 
 Date:
-    10/08/2014
-    01/29/2015
+    10/16/2014
     10/13/2015
 """
 
@@ -18,25 +16,33 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import pybgo
 import shutil
 import numpy as np
+import design
+import math
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
 def f(x):
     """
-    A 1D function to be minimized
+    A toy 2D function.
     """
-    return 4. * (1. - np.sin((x[0] + 8. * np.exp(x[0] - 7.)) * 2.))
+    return np.log((x[1] - 5.1 / 4 / math.pi ** 2 * x[0] ** 2 + 5 / math.pi * x[0] - 6.) ** 2.
+                  + 10. * (1. - 1. / 8. / math.pi) * np.cos(x[0]) + 10.)
+
+
+# The domain of the problem
+domain = np.array([[-5., 10.],
+                   [0., 15.]])
 
 
 # The number of design points over which we are looking for the minimum
-num_design = 100
+num_design = 20 # Per input dimension
 
 # The number design points used to start the algorithm
-num_init = 6
+num_init = 20
 
 # The folder on which we save the results
-out_dir = 'minimize_1d_res'
+out_dir = 'minimize_2d_res'
 
 # Fix the random seed to ensure reproducibility
 seed = 3141569
@@ -59,15 +65,22 @@ print '+ making', out_dir
 os.makedirs(out_dir)
 
 # We are looking for the minimum over these points
-X_design = np.linspace(0, 6., num_design)[:, None]
+# Use something like the following for a generic problem
+#X_design = domain[:, 0] + (domain[:, 1] - domain[:, 0]) * design.latin_center(num_design, 2) 
+# For this one we use a regular grid only because we want to do some contour
+# plots
+x1 = np.linspace(domain[0, 0], domain[0, 1], num_design)
+x2 = np.linspace(domain[1, 0], domain[1, 1], num_design)
+X1, X2= np.meshgrid(x1, x2)
+X_design = np.hstack([X1.flatten()[:, None], X2.flatten()[:, None]])
 
 # The initial points to start from
-#X_init = np.linspace(0, 6., num_init)[:, None]
 X_init = np.random.rand(num_init)[:, None] * 6.
+X_init = domain[:, 0] + (domain[:, 1] - domain[:, 0]) * design.latin_center(num_init, 2) 
 
 # Globally minimize f
 x, y, ei, _ = pybgo.minimize(f, X_init, X_design, tol=1e-5,
-                          callback=pybgo.plot_summary,      # This plots the results
+                          callback=pybgo.plot_summary_2d,      # This plots the results
                                                             # at each iteration of
                                                             # the algorithm
                           prefix=os.path.join(out_dir, 'out'),

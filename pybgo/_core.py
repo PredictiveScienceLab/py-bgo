@@ -284,7 +284,7 @@ def minimize(f, X_init, X_design, prefix="minimize", Gamma=expected_improvement,
     Optimize f using a limited number of evaluations.
     """
     X = X_init
-    y = np.array([f(X[i, :]) for i in xrange(X.shape[0])])
+    y = np.array([f(X[i, :]) for i in xrange(X.shape[0])])[:, None]
     Gs = [1.]
     i_added = []
     k = GPy.kern.RBF(X.shape[1], ARD=True)
@@ -306,7 +306,7 @@ def minimize(f, X_init, X_design, prefix="minimize", Gamma=expected_improvement,
             print '*** converged'
             break
         X = np.vstack([X, X_design[i:(i+1), :]])
-        y = np.vstack([y, f(X_design[i, :])])
+        y = np.vstack([y, [f(X_design[i, :])]])
         if i % train_every == 0:
             print '+ training the model'
             k = GPy.kern.RBF(X.shape[1], ARD=True)
