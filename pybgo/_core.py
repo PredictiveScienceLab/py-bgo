@@ -302,13 +302,13 @@ def minimize(f, X_init, X_design, prefix="minimize", Gamma=expected_improvement,
             G[i_added] = 0.
         i = np.argmax(G)
         i_added.append(i)
-        if i > add_at_least and G[i] / Gs[0] < tol:
+        if count > add_at_least and G[i] / Gs[0] < tol:
             if verbose:
                 print '*** converged'
             break
         X = np.vstack([X, X_design[i:(i+1), :]])
         y = np.vstack([y, [f(X_design[i, :])]])
-        if i % train_every == 0:
+        if count % train_every == 0:
             if verbose:
                 print '+ training the model'
             k = GPy.kern.RBF(X.shape[1], ARD=True)
