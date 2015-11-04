@@ -279,7 +279,7 @@ def plot_summary_2d(f, X_design, model, prefix, G, Gamma_name):
 def minimize(f, X_init, X_design, prefix="minimize", Gamma=expected_improvement,
              Gamma_name='EI', max_it=100, tol=1e-1, add_at_least=1,
              train_every=5, fixed_noise=1e-6, do_not_resample=True,
-             callback=None, save_model=False):
+             callback=None, save_model=False, verbose=False):
     """
     Optimize f using a limited number of evaluations.
     """
@@ -303,12 +303,14 @@ def minimize(f, X_init, X_design, prefix="minimize", Gamma=expected_improvement,
         i = np.argmax(G)
         i_added.append(i)
         if i > add_at_least and G[i] / Gs[0] < tol:
-            print '*** converged'
+            if verbose:
+                print '*** converged'
             break
         X = np.vstack([X, X_design[i:(i+1), :]])
         y = np.vstack([y, [f(X_design[i, :])]])
         if i % train_every == 0:
-            print '+ training the model'
+            if verbose:
+                print '+ training the model'
             k = GPy.kern.RBF(X.shape[1], ARD=True)
             model = GPy.models.GPRegression(X, y, k)
             if fixed_noise is not None:
@@ -320,10 +322,12 @@ def minimize(f, X_init, X_design, prefix="minimize", Gamma=expected_improvement,
         if save_model:
             model_file = prefix + \
                     '_model_{0:s}.pcl'.format(str(count).zfill(len(str(max_it))))
-            print '+ writing:', model_file
+            if verbose:
+                print '+ writing:', model_file
             with open(model_file, 'wb') as fd:
                 pickle.dump(model, fd)
-        print '{0:5d}: {1:10s} = {2:1.6f}, {3:10s} = {4:6d}, {5:10s} = {6:1.6e}'.format(
+        if verbose:
+            print '{0:5d}: {1:10s} = {2:1.6f}, {3:10s} = {4:6d}, {5:10s} = {6:1.6e}'.format(
                 count + 1, 'current min.', np.min(y), 'added id #', i,
                 'rel.' + Gamma_name, G[i] / Gs[0])
         Gs.append(G[i])
