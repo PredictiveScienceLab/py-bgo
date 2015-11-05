@@ -279,12 +279,19 @@ def plot_summary_2d(f, X_design, model, prefix, G, Gamma_name):
 def minimize(f, X_init, X_design, prefix="minimize", Gamma=expected_improvement,
              Gamma_name='EI', max_it=100, tol=1e-1, add_at_least=1,
              train_every=5, fixed_noise=1e-6, do_not_resample=True,
-             callback=None, save_model=False, verbose=False):
+             callback=None, save_model=False, verbose=False, scale=True):
     """
     Optimize f using a limited number of evaluations.
     """
     X = X_init
     y = np.array([f(X[i, :]) for i in xrange(X.shape[0])])[:, None]
+    if scale:
+        y_m = np.mean(y)
+        y_s = np.std(y)
+    else:
+        y_m = 0.
+        y_s = 1.
+    y = (y - y_m) / y_s
     Gs = [1.]
     i_added = []
     k = GPy.kern.RBF(X.shape[1], ARD=True)
@@ -307,7 +314,7 @@ def minimize(f, X_init, X_design, prefix="minimize", Gamma=expected_improvement,
                 print '*** converged'
             break
         X = np.vstack([X, X_design[i:(i+1), :]])
-        y = np.vstack([y, [f(X_design[i, :])]])
+        y = np.vstack([y, [(f(X_design[i, :]) - y_m) / y_s]])
         if count % train_every == 0:
             if verbose:
                 print '+ training the model'
@@ -331,7 +338,7 @@ def minimize(f, X_init, X_design, prefix="minimize", Gamma=expected_improvement,
                 count + 1, 'current min.', np.min(y), 'added id #', i,
                 'rel.' + Gamma_name, G[i] / Gs[0])
         Gs.append(G[i])
-    return X, y, Gs, model
+    return X, y * y_s + y_m, Gs, model
 
 
 def maximize(f, X_init, X_design, prefix='maximize', Gamma=expected_improvement,
