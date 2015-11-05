@@ -15,7 +15,7 @@ __all__ = ['expected_improvement',
            'fb_expected_improvement',
            'expected_information_gain',
            'minimize', 'maximize',
-           'plot_summary', 'plot_summary_2d']
+           'plot_summary', 'plot_summary_2d', 'plot_summary_no_feval']
 
 
 import GPy
@@ -233,6 +233,37 @@ def plot_summary(f, X_design, model, prefix, G, Gamma_name):
     print '+ writing:', png_file
     fig.savefig(png_file)
     plt.close(fig)
+
+
+def plot_summary_no_feval(f, X_design, model, prefix, G, Gamma_name):
+    """
+    Plot a summary of the current iteration.
+    """
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    X = model.X
+    y = model.Y
+    m_s, k_s = model.predict(X_design, full_cov=True)
+    m_05, m_95 = model.predict_quantiles(X_design)
+    fig, ax1 = plt.subplots()
+    ax1.plot(X, y, 'x', linewidth=2, markersize=10, markeredgewidth=2,
+             color='black')
+    ax1.plot(X_design, m_s, '--', linewidth=2, color=sns.color_palette()[0])
+    ax1.fill_between(X_design.flatten(), m_05.flatten(), m_95.flatten(),
+                     color=sns.color_palette()[0], alpha=0.25)
+    i = np.argmax(G)
+    ax1.set_ylabel('$f(x)$', fontsize=16)
+    ax1.set_xlabel('$x$', fontsize=16)
+    ax2 = ax1.twinx()
+    ax2.plot(X_design, G, ':', linewidth=2, color=sns.color_palette()[1])
+    ax2.set_ylabel('$\\operatorname{%s}(x)$' % Gamma_name, fontsize=16, color=sns.color_palette()[1])
+    ax2.set_ylim([0., 2.])
+    plt.setp(ax2.get_yticklabels(), color=sns.color_palette()[1])
+    png_file = prefix + '.png'
+    print '+ writing:', png_file
+    fig.savefig(png_file)
+    plt.close(fig)
+
 
 
 def plot_summary_2d(f, X_design, model, prefix, G, Gamma_name):
