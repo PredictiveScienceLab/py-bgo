@@ -252,6 +252,7 @@ class GlobalOptimizer(object):
                  optimize_model_num_restarts=1,
                  num_predict=100,
                  fixed_noise=False,
+		 noise=1e-6,
                  max_it=100,
                  add_at_least=10,
                  rel_tol=1e-2,
@@ -290,6 +291,7 @@ class GlobalOptimizer(object):
         self.optimize_model_before_mcmc = optimize_model_before_mcmc
         self.optimize_model_num_restarts = optimize_model_num_restarts
         self.fixed_noise = fixed_noise
+	self.noise = noise
         self.max_it = max_it
         self.add_at_least = add_at_least
         self.rel_tol = rel_tol
@@ -342,7 +344,7 @@ class GlobalOptimizer(object):
         model._X_predict = self.X_design
         if self.fixed_noise:
             model.likelihood.variance.unconstrain()
-            model.Gaussian_noise.variance.constrain_fixed(self.fixed_noise)
+            model.Gaussian_noise.variance.constrain_fixed(self.noise)
         else:
             model.likelihood.variance.set_prior(self.model_like_variance_prior)
         model._num_predict = self.num_predict
