@@ -245,6 +245,8 @@ class GlobalOptimizer(object):
                  kernel_type=GPy.kern.RBF,
                  gp_type=GPy.models.GPRegression,
                  model_like_variance_prior=GPy.priors.Jeffreys(),
+		 kern_variance_prior = GPy.priors.Jeffreys(),
+		 kern_lengthscale_prior = GPy.priors.Jeffreys(),
                  optimize_model_before_init_mcmc=False,
                  optimize_model_before_mcmc=False,
                  optimize_model_num_restarts=1,
@@ -279,6 +281,8 @@ class GlobalOptimizer(object):
         self._kernel_type = kernel_type
         self._gp_type = gp_type
         self._model_like_variance_prior = model_like_variance_prior
+	self.kern_variance_prior = kern_variance_prior
+	self.kern_lengthscale_prior = kern_lengthscale_prior
         self._idx_X_obs = []
         self._Y_obs = []
         self.num_predict = 100
@@ -324,9 +328,9 @@ class GlobalOptimizer(object):
         """
         kernel = self.kernel_type(self.num_dim, ARD=True)
         kernel.variance.unconstrain()
-        kernel.variance.set_prior(GPy.priors.Jeffreys())
+        kernel.variance.set_prior(self.kern_variance_prior)
         kernel.lengthscale.unconstrain()
-        kernel.lengthscale.set_prior(GPy.priors.LogLogistic())
+        kernel.lengthscale.set_prior(self.kern_lengthscale_prior)
         return kernel
 
     def _get_fresh_model(self):
