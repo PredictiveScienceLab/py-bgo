@@ -180,7 +180,7 @@ class GlobalOptimizer(object):
         """
         if len(self.Y_obs) == 0:
             return np.array(self.Y_init)
-        return np.vstack([self.Y_init, self.Y_obs])
+        return np.vstack([self.Y_init, (np.array(self.Y_obs))[:,None]])
 
     @property
     def num_dim(self):
