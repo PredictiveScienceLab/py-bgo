@@ -405,7 +405,7 @@ class GlobalOptimizer(object):
         i = np.argmax(ei)
         # Do the simulation and add it
         self.idx_X_obs.append(i)
-        self.Y_obs.append(self.func(self.X_design[i], *self.args))
+        self.Y_obs.append(self.func(self.X_design[i, :], *self.args))
         self.model.set_XY(self.X, self.Y)
         if self.verbose:
             print '\t> design point id to be added : {0:d}'.format(i)
