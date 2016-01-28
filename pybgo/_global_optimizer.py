@@ -21,6 +21,7 @@ import warnings
 warnings.simplefilter('ignore')
 import GPy
 import design
+import os
 from . import colorAlpha_to_rgb
 
 
@@ -180,7 +181,7 @@ class GlobalOptimizer(object):
         """
         if len(self.Y_obs) == 0:
             return np.array(self.Y_init)
-        return np.vstack([self.Y_init, (np.array(self.Y_obs))[:,None]])
+        return np.hstack([self.Y_init, self.Y_obs])
 
     @property
     def num_dim(self):
@@ -320,6 +321,7 @@ class GlobalOptimizer(object):
         self.new_fig_func = new_fig_func
         self.trace_posterior_samples = trace_posterior_samples
         self.renew_design = renew_design
+        self.initialize()
 
     def _get_fresh_kernel(self):
         """
@@ -337,7 +339,7 @@ class GlobalOptimizer(object):
         """
         :getter: Get a fresh Gaussian process model.
         """
-        model = self.gp_type(self.X, self.Y, self.kernel)
+        model = self.gp_type(self.X, self.Y[:, None], self.kernel)
         model.likelihood.variance.unconstrain()
         model._X_predict = self.X_design
         if self.fixed_noise:
@@ -364,11 +366,11 @@ class GlobalOptimizer(object):
                 print '\t> did not find observed objectives'
                 sys.stdout.write('\t> computing the objectives now... ')
                 sys.stdout.flush()
-            self.Y_init = [self.func(x, *self.args) for x in self.X_init]
+            self.Y_init = [self.func(self.X_init[i, :], *self.args) for i in range(self.X_init.shape[0])]
             if self.verbose:
                 sys.stdout.write('done!\n')
 
-    def optimize_step(self, it=0):
+    def optimize_step(self, it):
         """
         Perform a single optimization step.
         """
@@ -395,6 +397,9 @@ class GlobalOptimizer(object):
                 sys.stdout.write(' done!\n')
         if self.verbose:
             print '\t> starting mcmc sampling'
+        old_db_name = self.model.pymc_db_opts['dbname']
+        old_db_prefix, ext = os.path.splitext(old_db_name)
+        self.model.pymc_db_opts['dbname'] = old_db_prefix + '_' + str(it + 1).zfill(3) + ext
         self.model.pymc_mcmc.sample(self.num_mcmc_samples,
                                burn=self.num_mcmc_burn,
                                thin=self.num_mcmc_thin,
@@ -406,7 +411,7 @@ class GlobalOptimizer(object):
         # Do the simulation and add it
         self.idx_X_obs.append(i)
         self.Y_obs.append(self.func(self.X_design[i, :], *self.args))
-        self.model.set_XY(self.X, self.Y)
+        self.model.set_XY(self.X, self.Y[:, None])
         if self.verbose:
             print '\t> design point id to be added : {0:d}'.format(i)
             print '\t> maximum expected improvement: {0:1.3f}'.format(ei[i])
@@ -418,7 +423,6 @@ class GlobalOptimizer(object):
         """
         if self.verbose:
             print '> initializing algorithm'
-        self.initialize()
         self.ei_values = []
         self.y_best_p500 = []
         self.y_best_p025 = []
