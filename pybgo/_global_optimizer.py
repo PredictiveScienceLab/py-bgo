@@ -180,7 +180,7 @@ class GlobalOptimizer(object):
         """
         if len(self.Y_obs) == 0:
             return np.array(self.Y_init)
-        return np.vstack([self.Y_init, self.Y_obs])
+        return np.hstack([self.Y_init, self.Y_obs])
 
     @property
     def num_dim(self):
@@ -245,7 +245,7 @@ class GlobalOptimizer(object):
                  kernel_type=GPy.kern.RBF,
                  gp_type=GPy.models.GPRegression,
                  model_like_variance_prior=GPy.priors.Jeffreys(),
-                 optimize_model_before_init_mcmc=False,
+                 optimize_model_before_init_mcmc=True,
                  optimize_model_before_mcmc=False,
                  optimize_model_num_restarts=1,
                  num_predict=100,
@@ -256,7 +256,7 @@ class GlobalOptimizer(object):
                  num_mcmc_samples=1000,
                  num_mcmc_burn=100,
                  num_mcmc_thin=10,
-                 mcmc_tune_throughout=False,
+                 mcmc_tune_throughout=True,
                  mcmc_progress_bar=True,
                  mcmc_start_from_scratch=False,
                  verbose=True,
@@ -265,7 +265,6 @@ class GlobalOptimizer(object):
                  plot_prefix='optimizer',
                  true_func=None,
                  new_fig_func=None,
-                 trace_posterior_samples=False,
                  renew_design=False):
         """
         Initialize the object.
@@ -294,8 +293,6 @@ class GlobalOptimizer(object):
         self.num_mcmc_thin = num_mcmc_thin
         self.mcmc_tune_throughout = mcmc_tune_throughout
         self.mcmc_progress_bar = mcmc_progress_bar
-        if optimize_model_before_mcmc:
-            mcmc_start_from_scratch = True
         self.mcmc_start_from_scratch = mcmc_start_from_scratch
         self.verbose = True
         self.make_plots = make_plots
@@ -314,7 +311,6 @@ class GlobalOptimizer(object):
                 return plt.subplots()
             new_fig_func = new_fig
         self.new_fig_func = new_fig_func
-        self.trace_posterior_samples = trace_posterior_samples
         self.renew_design = renew_design
 
     def _get_fresh_kernel(self):
@@ -333,7 +329,7 @@ class GlobalOptimizer(object):
         """
         :getter: Get a fresh Gaussian process model.
         """
-        model = self.gp_type(self.X, self.Y, self.kernel)
+        model = self.gp_type(self.X, self.Y[:, None], self.kernel)
         model.likelihood.variance.unconstrain()
         model._X_predict = self.X_design
         if self.fixed_noise:
@@ -345,8 +341,6 @@ class GlobalOptimizer(object):
         model.pymc_trace_denoised_min()
         model.pymc_trace_denoised_argmin()
         model.pymc_trace_expected_improvement(denoised=True)
-        if self.trace_posterior_samples:
-            model.pymc_trace_posterior_samples()
         return model
 
     def initialize(self):
@@ -374,23 +368,16 @@ class GlobalOptimizer(object):
         self._best_idx = None
         if self.mcmc_start_from_scratch:
             self._model = None
+        else:
+            self.model.set_XY(self.X, self.Y[:, None])
         if self.renew_design:
             self.X_design = design.latin_center(*self.X_design.shape)
             self.model._X_predict = self.X_design
-        if (it == 0 and self.optimize_model_before_init_mcmc) \
-                or self.optimize_model_before_mcmc:
-            if self.verbose:
-                sys.stdout.write('\t> optimizing gp model...')
-                sys.stdout.flush()
-            if self.optimize_model_num_restarts == 1:
-                self.model.optimize()
-            else:
-                self.model.optimize_restarts(
-                        num_restarts=self.optimize_model_num_restarts)
-            if self.verbose:
-                sys.stdout.write(' done!\n')
-        if self.verbose:
-            print '\t> starting mcmc sampling'
+        if ((it == 0 and self.optimize_model_before_init_mcmc) or
+                self.optimize_model_before_mcmc):
+            self.model.optimize()
+            print str(self.model)
+            print self.model.kern.lengthscale
         self.model.pymc_mcmc.sample(self.num_mcmc_samples,
                                burn=self.num_mcmc_burn,
                                thin=self.num_mcmc_thin,
@@ -402,7 +389,6 @@ class GlobalOptimizer(object):
         # Do the simulation and add it
         self.idx_X_obs.append(i)
         self.Y_obs.append(self.func(self.X_design[i], *self.args))
-        self.model.set_XY(self.X, self.Y)
         if self.verbose:
             print '\t> design point id to be added : {0:d}'.format(i)
             print '\t> maximum expected improvement: {0:1.3f}'.format(ei[i])
@@ -548,10 +534,7 @@ class GlobalOptimizer(object):
             print '\t\t> plotting the optimization status'
         import matplotlib.pyplot as plt
         import seaborn as sns
-        Y = self.model.pymc_mcmc.trace('posterior_samples')[:]
-        Y = np.vstack(Y)
-        Y_d = self.model.pymc_mcmc.trace('denoised_posterior_samples')[:]
-        Y_d = np.vstack(Y_d)
+        Y_d = self.denoised_posterior_samples
         fig, ax1 = self.new_fig_func()
         ax2 = ax1.twinx()
         p_025 = np.percentile(Y_d, 2.5, axis=0)
@@ -562,13 +545,13 @@ class GlobalOptimizer(object):
                          label='95\% error')
         ax1.plot(self.X_design, p_500, color=sns.color_palette()[0],
                       label='Pred. mean')
-        ax1.plot(self.X[:-1, :], self.Y[:-1, :],
+        ax1.plot(self.X[:-1, :], self.Y[:-1],
                  'kx', markersize=10, markeredgewidth=2,
                  label='Observations')
         if self.true_func is not None:
             ax1.plot(self.X_design, self.Y_true,
                      ':', color=sns.color_palette()[2])
-        ax1.plot(self.X[-1, 0], self.Y[-1, 0], 'o',
+        ax1.plot(self.X[-1, 0], self.Y[-1], 'o',
                  markersize=10, markeredgewidth=2,
                  color=sns.color_palette()[1])
         ax2.plot(self.X_design, self.ei / self.ei_values[0],
@@ -608,12 +591,13 @@ class GlobalOptimizer(object):
         self.y_best_p025.append(y_best_p025)
         self.y_best_p975.append(y_best_p975)
         fig, ax = self.new_fig_func()
-        ax.fill_between(np.arange(1, it + 2), self.y_best_p025,
+        idx = np.arange(1, it + 2)
+        ax.fill_between(idx, self.y_best_p025,
                         self.y_best_p975,
                         color=colorAlpha_to_rgb(sns.color_palette()[0], 0.25))
-        ax.plot(np.arange(1, it + 2), self.y_best_p500)
+        ax.plot(idx, self.y_best_p500)
         if self.true_func is not None:
-            ax.plot(np.arange(1, it + 2), [self.Y_true_best] * (it + 1),
+            ax.plot(idx, [self.Y_true_best] * idx.shape[0],
                     '--', color=sns.color_palette()[2])
         ax.set_xlabel('Iteration')
         ax.set_ylabel('Optimal objective')
@@ -633,12 +617,12 @@ class GlobalOptimizer(object):
             self.x_best_p025.append(x_best_p025)
             self.x_best_p975.append(x_best_p975)
             fig, ax = self.new_fig_func()
-            ax.fill_between(np.arange(1, it + 2), self.x_best_p025,
+            ax.fill_between(idx, self.x_best_p025,
                             self.x_best_p975,
                             color=colorAlpha_to_rgb(sns.color_palette()[0], 0.25))
-            ax.plot(np.arange(1, it + 2), self.x_best_p500)
+            ax.plot(idx, self.x_best_p500)
             if self.true_func is not None:
-                ax.plot(np.arange(1, it + 2), [self.X_true_best.flatten()] * (it + 1),
+                ax.plot(idx, [self.X_true_best.flatten()] * idx.shape[0],
                         '--', color=sns.color_palette()[2])
             ax.set_xlabel('Iteration')
             ax.set_ylabel('Optimal design')
