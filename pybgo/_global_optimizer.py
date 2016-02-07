@@ -259,7 +259,7 @@ class GlobalOptimizer(object):
                  num_mcmc_samples=1000,
                  num_mcmc_burn=100,
                  num_mcmc_thin=10,
-                 mcmc_tune_throughout=True,
+                 mcmc_tune_throughout=False,
                  mcmc_progress_bar=True,
                  mcmc_start_from_scratch=False,
                  verbose=True,
