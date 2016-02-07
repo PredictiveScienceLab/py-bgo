@@ -21,6 +21,7 @@ import warnings
 warnings.simplefilter('ignore')
 import GPy
 import design
+import os
 from . import colorAlpha_to_rgb
 
 
@@ -245,6 +246,8 @@ class GlobalOptimizer(object):
                  kernel_type=GPy.kern.RBF,
                  gp_type=GPy.models.GPRegression,
                  model_like_variance_prior=GPy.priors.Jeffreys(),
+                 kern_variance_prior=GPy.priors.Jeffreys(),
+                 kern_lengthscale_prior=GPy.priors.Jeffreys(),
                  optimize_model_before_init_mcmc=True,
                  optimize_model_before_mcmc=False,
                  optimize_model_num_restarts=1,
@@ -278,6 +281,8 @@ class GlobalOptimizer(object):
         self._kernel_type = kernel_type
         self._gp_type = gp_type
         self._model_like_variance_prior = model_like_variance_prior
+        self.kern_variance_prior = kern_variance_prior
+        self.kern_lengthscale_prior = kern_lengthscale_prior
         self._idx_X_obs = []
         self._Y_obs = []
         self.num_predict = 100
@@ -312,6 +317,7 @@ class GlobalOptimizer(object):
             new_fig_func = new_fig
         self.new_fig_func = new_fig_func
         self.renew_design = renew_design
+        self.initialize()
 
     def _get_fresh_kernel(self):
         """
@@ -320,9 +326,9 @@ class GlobalOptimizer(object):
         """
         kernel = self.kernel_type(self.num_dim, ARD=True)
         kernel.variance.unconstrain()
-        kernel.variance.set_prior(GPy.priors.Jeffreys())
+        kernel.variance.set_prior(self.kern_variance_prior)
         kernel.lengthscale.unconstrain()
-        kernel.lengthscale.set_prior(GPy.priors.LogLogistic())
+        kernel.lengthscale.set_prior(self.kern_lengthscale_prior)
         return kernel
 
     def _get_fresh_model(self):
@@ -354,11 +360,11 @@ class GlobalOptimizer(object):
                 print '\t> did not find observed objectives'
                 sys.stdout.write('\t> computing the objectives now... ')
                 sys.stdout.flush()
-            self.Y_init = [self.func(x, *self.args) for x in self.X_init]
+            self.Y_init = [self.func(self.X_init[i, :], *self.args) for i in range(self.X_init.shape[0])]
             if self.verbose:
                 sys.stdout.write('done!\n')
 
-    def optimize_step(self, it=0):
+    def optimize_step(self, it):
         """
         Perform a single optimization step.
         """
@@ -378,6 +384,8 @@ class GlobalOptimizer(object):
             self.model.optimize()
             print str(self.model)
             print self.model.kern.lengthscale
+        if self.verbose:
+            print '\t> starting mcmc sampling'
         self.model.pymc_mcmc.sample(self.num_mcmc_samples,
                                burn=self.num_mcmc_burn,
                                thin=self.num_mcmc_thin,
@@ -400,11 +408,13 @@ class GlobalOptimizer(object):
         """
         if self.verbose:
             print '> initializing algorithm'
-        self.initialize()
         self.ei_values = []
         self.y_best_p500 = []
         self.y_best_p025 = []
         self.y_best_p975 = []
+        self.y_obs_best_p500 = []
+        self.y_obs_best_p025 = []
+        self.y_obs_best_p975 = []
         self.x_best_p500 = []
         self.x_best_p025 = []
         self.x_best_p975 = []
@@ -602,6 +612,30 @@ class GlobalOptimizer(object):
         ax.set_xlabel('Iteration')
         ax.set_ylabel('Optimal objective')
         figname = self._fig_name('objective', it)
+        if self.verbose:
+            print '\t\t> writing:', figname
+        fig.savefig(figname)
+        plt.close(fig)
+        # Do the same for the best observed values
+        y_obs_best = self.model.pymc_mcmc.trace('min_denoised_output')[:]
+        y_obs_best_p500 = np.percentile(y_obs_best, 50)
+        y_obs_best_p025 = np.percentile(y_obs_best, 2.5)
+        y_obs_best_p975 = np.percentile(y_obs_best, 97.5)
+        self.y_obs_best_p500.append(y_obs_best_p500)
+        self.y_obs_best_p025.append(y_obs_best_p025)
+        self.y_obs_best_p975.append(y_obs_best_p975)
+        fig, ax = self.new_fig_func()
+        idx = np.arange(1, it + 2)
+        ax.fill_between(idx, self.y_obs_best_p025,
+                        self.y_obs_best_p975,
+                        color=colorAlpha_to_rgb(sns.color_palette()[0], 0.25))
+        ax.plot(idx, self.y_obs_best_p500)
+        if self.true_func is not None:
+            ax.plot(idx, [self.Y_true_best] * idx.shape[0],
+                    '--', color=sns.color_palette()[2])
+        ax.set_xlabel('Iteration')
+        ax.set_ylabel('Denoised observed optimal objective')
+        figname = self._fig_name('denoised_objective', it)
         if self.verbose:
             print '\t\t> writing:', figname
         fig.savefig(figname)
