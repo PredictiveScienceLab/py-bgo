@@ -640,6 +640,12 @@ class GlobalOptimizer(object):
             print '\t\t> writing:', figname
         fig.savefig(figname)
         plt.close(fig)
+        # What is the design point corresponding to the smallest of all
+        # the min_denoised?
+        X_best_file = self.plot_prefix + '_' + str(it).zfill(self._get_nd()) + '_X_best.npy'
+        if self.verbose:
+            print '\t\t> writing:', X_best_file
+        np.save(X_best_file, self.X_best)
         # Do the same for the design (only 1D)
         if self.num_dim == 1:
             if self.verbose:
