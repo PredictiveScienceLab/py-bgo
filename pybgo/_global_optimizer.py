@@ -645,7 +645,7 @@ class GlobalOptimizer(object):
         X_best_file = self.plot_prefix + '_' + str(it).zfill(self._get_nd()) + '_X_best.npy'
         if self.verbose:
             print '\t\t> writing:', X_best_file
-        np.save(X_best_file, self.X_best)
+        np.save(X_best_file, self.model.X)
         # Do the same for the design (only 1D)
         if self.num_dim == 1:
             if self.verbose:
